@@ -1,0 +1,344 @@
+{
+  "agent": {
+    "name": "Builder Lifecycle Sentinel",
+    "description": "A compact local QA agent for the Ruh agent builder that performs one manual, evidence-backed readiness pass over a fresh create-flow.",
+    "mode": "manual-one-shot",
+    "guardrails": [
+      "observe-report-only",
+      "local-only",
+      "no-external-integrations",
+      "no-deploy-or-ship-without-explicit-operator-approval",
+      "never-treat-missing-evidence-as-pass"
+    ]
+  },
+  "skills": [
+    {
+      "id": "collect-local-evidence",
+      "name": "Collect Local Evidence",
+      "description": "Collect bounded read-only evidence from workspace files, OpenClaw/Ruh local runtime surfaces, Docker/Podman state, and logs.",
+      "dependencies": [],
+      "toolType": "cli",
+      "envVars": [
+        "BUILDER_SENTINEL_DEFAULT_WORKSPACE",
+        "BUILDER_SENTINEL_DEFAULT_AGENT_NAME",
+        "BUILDER_SENTINEL_MAX_LOG_FILES",
+        "BUILDER_SENTINEL_MAX_LOG_BYTES",
+        "BUILDER_SENTINEL_MAX_LOG_EXCERPT_BYTES",
+        "BUILDER_SENTINEL_COMMAND_TIMEOUT_MS",
+        "BUILDER_SENTINEL_LOG_TIMEOUT_MS",
+        "BUILDER_SENTINEL_ALLOW_EXTERNAL_CALLS"
+      ],
+      "writes": ["qa_runs", "artifacts", "evidence_items", "run_events"]
+    },
+    {
+      "id": "verify-builder-lifecycle",
+      "name": "Verify Builder Lifecycle",
+      "description": "Evaluate deterministic Environment, Think, Plan, Build, Review/Test, and Ship Guardrail checks against collected evidence.",
+      "dependencies": ["collect-local-evidence"],
+      "toolType": "api",
+      "envVars": [
+        "BUILDER_SENTINEL_REQUIRE_EXPLICIT_SHIP_APPROVAL"
+      ],
+      "reads": ["artifacts", "evidence_items"],
+      "writes": ["check_results", "run_events", "qa_runs"]
+    },
+    {
+      "id": "render-readiness-report",
+      "name": "Render Readiness Report",
+      "description": "Render concise chat summaries and dashboard-ready readiness views from QA run, check, artifact, and evidence data.",
+      "dependencies": ["verify-builder-lifecycle"],
+      "toolType": "api",
+      "envVars": [],
+      "reads": ["qa_runs", "check_results", "artifacts", "evidence_items", "run_events"],
+      "writes": ["run_events"]
+    }
+  ],
+  "workflow": {
+    "trigger": "manual_run_requested",
+    "steps": [
+      {
+        "skillId": "collect-local-evidence",
+        "parallel": false,
+        "description": "Resolve target workspace/session and collect local evidence/artifact inventory with bounded reads."
+      },
+      {
+        "skillId": "verify-builder-lifecycle",
+        "parallel": false,
+        "description": "Run deterministic lifecycle checks and compute overall status."
+      },
+      {
+        "skillId": "render-readiness-report",
+        "parallel": false,
+        "description": "Render operator-facing summary and dashboard data."
+      }
+    ]
+  },
+  "dataSchema": {
+    "tables": [
+      {
+        "name": "qa_runs",
+        "description": "One manual QA pass over a target builder create-flow.",
+        "columns": [
+          { "name": "id", "type": "TEXT PRIMARY KEY", "description": "Stable QA run id." },
+          { "name": "created_at", "type": "TEXT NOT NULL", "description": "Record creation timestamp." },
+          { "name": "target_agent_name", "type": "TEXT NOT NULL", "description": "Expected agent name, normally Builder Lifecycle Sentinel." },
+          { "name": "target_workspace", "type": "TEXT NOT NULL", "description": "Workspace inspected by the run." },
+          { "name": "target_session_id", "type": "TEXT", "description": "Relevant builder/create-flow session id when known." },
+          { "name": "invocation_channel", "type": "TEXT NOT NULL DEFAULT 'manual'", "description": "How the run was invoked." },
+          { "name": "started_at", "type": "TEXT NOT NULL", "description": "Run start timestamp." },
+          { "name": "finished_at", "type": "TEXT", "description": "Run completion timestamp." },
+          { "name": "overall_status", "type": "TEXT NOT NULL", "description": "running, ready, not_ready, blocked_unknown, or error." },
+          { "name": "summary", "type": "TEXT", "description": "Concise readiness summary." },
+          { "name": "created_by", "type": "TEXT", "description": "Operator or channel identity when available." },
+          { "name": "freshness_anchor", "type": "TEXT", "description": "Timestamp/session marker used for freshness checks." }
+        ],
+        "indexes": ["idx_qa_runs_started_at", "idx_qa_runs_target_agent"]
+      },
+      {
+        "name": "artifacts",
+        "description": "Expected lifecycle files and their freshness/exact-agent status.",
+        "columns": [
+          { "name": "id", "type": "TEXT PRIMARY KEY", "description": "Artifact record id." },
+          { "name": "created_at", "type": "TEXT NOT NULL", "description": "Record creation timestamp." },
+          { "name": "qa_run_id", "type": "TEXT NOT NULL", "description": "Parent QA run id." },
+          { "name": "artifact_type", "type": "TEXT NOT NULL", "description": "research_brief, prd, trd, architecture_json, plan_md, soul, agents, identity, skill, manifest, or log." },
+          { "name": "path", "type": "TEXT NOT NULL", "description": "Local path inspected." },
+          { "name": "exists_flag", "type": "INTEGER NOT NULL", "description": "1 if the artifact exists, else 0." },
+          { "name": "size_bytes", "type": "INTEGER", "description": "File size when available." },
+          { "name": "modified_at", "type": "TEXT", "description": "Filesystem modified timestamp." },
+          { "name": "sha256", "type": "TEXT", "description": "Content hash when read." },
+          { "name": "exact_agent_match", "type": "INTEGER", "description": "1 if content matches Builder Lifecycle Sentinel mission." },
+          { "name": "freshness_status", "type": "TEXT", "description": "fresh, stale, unknown, or not_applicable." },
+          { "name": "parse_status", "type": "TEXT", "description": "not_parsed, valid, invalid, or unknown." },
+          { "name": "notes", "type": "TEXT", "description": "Short inspection note." }
+        ],
+        "indexes": ["idx_artifacts_run", "idx_artifacts_type", "idx_artifacts_run_path"]
+      },
+      {
+        "name": "evidence_items",
+        "description": "Bounded evidence snippets and structured probe values supporting check results.",
+        "columns": [
+          { "name": "id", "type": "TEXT PRIMARY KEY", "description": "Evidence item id." },
+          { "name": "created_at", "type": "TEXT NOT NULL", "description": "Record creation timestamp." },
+          { "name": "qa_run_id", "type": "TEXT NOT NULL", "description": "Parent QA run id." },
+          { "name": "source_type", "type": "TEXT NOT NULL", "description": "file, session_status, sessions_history, cli, docker, podman, log, api, or operator_input." },
+          { "name": "source_locator", "type": "TEXT NOT NULL", "description": "Path, command, session key, endpoint, or log locator." },
+          { "name": "captured_at", "type": "TEXT NOT NULL", "description": "When the evidence was captured." },
+          { "name": "excerpt", "type": "TEXT", "description": "Short redacted evidence excerpt." },
+          { "name": "structured_value_json", "type": "TEXT", "description": "Structured evidence payload as JSON text." },
+          { "name": "redacted", "type": "INTEGER NOT NULL DEFAULT 0", "description": "1 if secrets or sensitive data were redacted." },
+          { "name": "confidence", "type": "TEXT NOT NULL", "description": "high, medium, or low." }
+        ],
+        "indexes": ["idx_evidence_run", "idx_evidence_source_type"]
+      },
+      {
+        "name": "check_results",
+        "description": "Deterministic pass/fail/unknown/skipped lifecycle checks.",
+        "columns": [
+          { "name": "id", "type": "TEXT PRIMARY KEY", "description": "Check result id." },
+          { "name": "created_at", "type": "TEXT NOT NULL", "description": "Record creation timestamp." },
+          { "name": "qa_run_id", "type": "TEXT NOT NULL", "description": "Parent QA run id." },
+          { "name": "stage", "type": "TEXT NOT NULL", "description": "environment, think, plan, build, review_test, or ship_guardrail." },
+          { "name": "check_key", "type": "TEXT NOT NULL", "description": "Stable check identifier." },
+          { "name": "title", "type": "TEXT NOT NULL", "description": "Human-readable check title." },
+          { "name": "severity", "type": "TEXT NOT NULL", "description": "critical, major, minor, or info." },
+          { "name": "status", "type": "TEXT NOT NULL", "description": "pass, fail, unknown, or skipped." },
+          { "name": "expected", "type": "TEXT NOT NULL", "description": "Expected evidence or condition." },
+          { "name": "actual", "type": "TEXT", "description": "Actual observed evidence or absence." },
+          { "name": "remediation", "type": "TEXT", "description": "Suggested next action." },
+          { "name": "primary_evidence_id", "type": "TEXT", "description": "Primary evidence item supporting this result." }
+        ],
+        "indexes": ["idx_check_results_run", "idx_check_results_stage", "idx_check_results_status", "idx_check_results_run_key"]
+      },
+      {
+        "name": "run_events",
+        "description": "Chronological activity feed for the QA run.",
+        "columns": [
+          { "name": "id", "type": "TEXT PRIMARY KEY", "description": "Run event id." },
+          { "name": "created_at", "type": "TEXT NOT NULL", "description": "Record creation timestamp." },
+          { "name": "qa_run_id", "type": "TEXT NOT NULL", "description": "Parent QA run id." },
+          { "name": "event_at", "type": "TEXT NOT NULL", "description": "Event timestamp." },
+          { "name": "event_type", "type": "TEXT NOT NULL", "description": "probe_started, probe_complete, check_failed, report_rendered, or similar." },
+          { "name": "message", "type": "TEXT NOT NULL", "description": "Short operator-facing event message." },
+          { "name": "metadata_json", "type": "TEXT", "description": "Structured event metadata." }
+        ],
+        "indexes": ["idx_run_events_run_time"]
+      }
+    ]
+  },
+  "apiEndpoints": [
+    {
+      "method": "GET",
+      "path": "/api/builder-lifecycle-sentinel/runs",
+      "description": "List recent manual QA runs.",
+      "responseShape": "{ runs: Array<{ id: string, targetAgentName: string, targetWorkspace: string, startedAt: string, finishedAt?: string, overallStatus: string, summary?: string }> }"
+    },
+    {
+      "method": "GET",
+      "path": "/api/builder-lifecycle-sentinel/runs/:id",
+      "description": "Return run summary and lifecycle stage counts.",
+      "responseShape": "{ id: string, overallStatus: string, stageSummaries: Array<{ stage: string, status: string, pass: number, fail: number, unknown: number, skipped: number }> }"
+    },
+    {
+      "method": "GET",
+      "path": "/api/builder-lifecycle-sentinel/runs/:id/checks",
+      "description": "Return check results with filtering by stage/status/severity.",
+      "responseShape": "{ checks: Array<{ checkKey: string, stage: string, severity: string, status: string, expected: string, actual?: string, primaryEvidenceId?: string, remediation?: string }> }"
+    },
+    {
+      "method": "GET",
+      "path": "/api/builder-lifecycle-sentinel/runs/:id/artifacts",
+      "description": "Return artifact inventory for the run.",
+      "responseShape": "{ artifacts: Array<{ artifactType: string, path: string, exists: boolean, modifiedAt?: string, sha256?: string, exactAgentMatch?: boolean, freshnessStatus: string, parseStatus: string }> }"
+    },
+    {
+      "method": "GET",
+      "path": "/api/builder-lifecycle-sentinel/runs/:id/evidence",
+      "description": "Return bounded evidence entries with optional source/check filtering.",
+      "responseShape": "{ evidence: Array<{ id: string, sourceType: string, sourceLocator: string, capturedAt: string, excerpt?: string, confidence: string, redacted: boolean }> }"
+    }
+  ],
+  "dashboardPages": [
+    {
+      "path": "/builder-lifecycle-sentinel/readiness",
+      "title": "Builder Lifecycle Sentinel Readiness",
+      "description": "Overview of the latest manual local QA run and lifecycle stage status.",
+      "components": [
+        { "type": "metric-cards", "title": "Readiness Metrics", "dataSource": "/api/builder-lifecycle-sentinel/runs/:id" },
+        { "type": "data-table", "title": "Lifecycle Stage Summary", "dataSource": "/api/builder-lifecycle-sentinel/runs/:id" },
+        { "type": "activity-feed", "title": "Run Activity", "dataSource": "/api/builder-lifecycle-sentinel/runs/:id/evidence" },
+        { "type": "bar-chart", "title": "Checks by Status and Stage", "dataSource": "/api/builder-lifecycle-sentinel/runs/:id/checks" }
+      ]
+    },
+    {
+      "path": "/builder-lifecycle-sentinel/checks",
+      "title": "Check Details",
+      "description": "Detailed pass/fail/unknown lifecycle checks with remediation and evidence references.",
+      "components": [
+        { "type": "data-table", "title": "Check Results", "dataSource": "/api/builder-lifecycle-sentinel/runs/:id/checks" }
+      ]
+    },
+    {
+      "path": "/builder-lifecycle-sentinel/artifacts",
+      "title": "Artifact Inventory",
+      "description": "Expected create-flow artifacts with freshness, exact-agent, parse, and existence status.",
+      "components": [
+        { "type": "data-table", "title": "Artifacts", "dataSource": "/api/builder-lifecycle-sentinel/runs/:id/artifacts" }
+      ]
+    },
+    {
+      "path": "/builder-lifecycle-sentinel/evidence",
+      "title": "Evidence Log",
+      "description": "Bounded redacted local evidence gathered during the QA run.",
+      "components": [
+        { "type": "activity-feed", "title": "Evidence Timeline", "dataSource": "/api/builder-lifecycle-sentinel/runs/:id/evidence" },
+        { "type": "data-table", "title": "Evidence Items", "dataSource": "/api/builder-lifecycle-sentinel/runs/:id/evidence" }
+      ]
+    }
+  ],
+  "triggers": [
+    {
+      "type": "manual",
+      "name": "Manual Fresh Create-Flow QA Pass",
+      "skillId": "collect-local-evidence",
+      "message": "Run Builder Lifecycle Sentinel on the latest or specified fresh create-flow using local-only read-only evidence."
+    }
+  ],
+  "envVars": [
+    {
+      "key": "BUILDER_SENTINEL_DEFAULT_WORKSPACE",
+      "label": "Default workspace",
+      "description": "Default workspace path to inspect when the operator does not specify one.",
+      "required": false,
+      "inputType": "text",
+      "group": "Local Configuration",
+      "default": "/root/.openclaw/workspace"
+    },
+    {
+      "key": "BUILDER_SENTINEL_DEFAULT_AGENT_NAME",
+      "label": "Default target agent name",
+      "description": "Expected agent name used for exact-agent checks.",
+      "required": false,
+      "inputType": "text",
+      "group": "Local Configuration",
+      "default": "Builder Lifecycle Sentinel"
+    },
+    {
+      "key": "BUILDER_SENTINEL_MAX_LOG_FILES",
+      "label": "Maximum log files",
+      "description": "Maximum number of local log files to inspect per run.",
+      "required": false,
+      "inputType": "number",
+      "group": "Safety Limits",
+      "default": "20"
+    },
+    {
+      "key": "BUILDER_SENTINEL_MAX_LOG_BYTES",
+      "label": "Maximum log bytes per file",
+      "description": "Maximum bytes read from any one log file.",
+      "required": false,
+      "inputType": "number",
+      "group": "Safety Limits",
+      "default": "65536"
+    },
+    {
+      "key": "BUILDER_SENTINEL_MAX_LOG_EXCERPT_BYTES",
+      "label": "Maximum stored log excerpt bytes",
+      "description": "Maximum bytes stored in one evidence excerpt.",
+      "required": false,
+      "inputType": "number",
+      "group": "Safety Limits",
+      "default": "2048"
+    },
+    {
+      "key": "BUILDER_SENTINEL_COMMAND_TIMEOUT_MS",
+      "label": "Command timeout milliseconds",
+      "description": "Timeout for read-only local CLI probes.",
+      "required": false,
+      "inputType": "number",
+      "group": "Safety Limits",
+      "default": "10000"
+    },
+    {
+      "key": "BUILDER_SENTINEL_LOG_TIMEOUT_MS",
+      "label": "Log command timeout milliseconds",
+      "description": "Timeout for bounded log inspection probes.",
+      "required": false,
+      "inputType": "number",
+      "group": "Safety Limits",
+      "default": "15000"
+    },
+    {
+      "key": "BUILDER_SENTINEL_REQUIRE_EXPLICIT_SHIP_APPROVAL",
+      "label": "Require explicit ship approval",
+      "description": "When true, ship/deploy readiness is never assumed without operator approval evidence.",
+      "required": false,
+      "inputType": "boolean",
+      "group": "Guardrails",
+      "default": "true"
+    },
+    {
+      "key": "BUILDER_SENTINEL_ALLOW_EXTERNAL_CALLS",
+      "label": "Allow external calls",
+      "description": "Must remain false for this local-only Sentinel.",
+      "required": false,
+      "inputType": "boolean",
+      "group": "Guardrails",
+      "default": "false"
+    }
+  ],
+  "vectorCollections": [
+    {
+      "name": "builder_lifecycle_failure_patterns",
+      "description": "Summarized non-secret failure patterns and remediation notes from prior QA runs.",
+      "embeddedContent": "Concise failed-check summaries, remediation notes, and operator-confirmed root causes.",
+      "usage": "Suggest likely causes and remediation in future runs."
+    },
+    {
+      "name": "builder_lifecycle_docs_context",
+      "description": "Non-secret local docs about expected builder lifecycle artifacts and phase contracts.",
+      "embeddedContent": "Curated docs snippets, not raw logs or secrets.",
+      "usage": "Improve explanations and reduce brittle hardcoding."
+    }
+  ]
+}

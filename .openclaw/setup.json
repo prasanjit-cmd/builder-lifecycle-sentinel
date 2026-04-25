@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "install": "NODE_ENV=development npm install",
+  "setup": [
+    {
+      "name": "migrate",
+      "command": "npm run db:migrate",
+      "condition": "file:db/migrations"
+    },
+    {
+      "name": "seed",
+      "command": "npm run db:seed",
+      "condition": "file:db/seed.ts",
+      "optional": true
+    },
+    {
+      "name": "dashboard-build",
+      "command": "cd dashboard && npx vite build --outDir dist 2>&1",
+      "condition": "file:dashboard/index.html",
+      "optional": true
+    },
+    {
+      "name": "install-cron-jobs",
+      "command": "sh $HOME/.openclaw/workspace/.openclaw/install-crons.sh 2>&1",
+      "condition": "file:.openclaw/install-crons.sh",
+      "optional": true
+    }
+  ],
+  "services": [
+    {
+      "name": "backend",
+      "command": "env PORT=3100 npx tsx backend/index.ts",
+      "port": 3100,
+      "healthCheck": "/health"
+    },
+    {
+      "name": "dashboard",
+      "command": "",
+      "port": 3100,
+      "healthCheck": "/health",
+      "optional": true
+    }
+  ],
+  "requires": {
+    "postgres": true,
+    "redis": false
+  }
+}

@@ -1,0 +1,74 @@
+{
+  "generatedAt": "2026-04-25T14:49:40.882Z",
+  "agentName": "Builder Lifecycle Sentinel",
+  "checks": [
+    {
+      "id": "deps",
+      "command": "cd $HOME/.openclaw/workspace && npm install 2>&1",
+      "successCondition": "exitCode === 0",
+      "maxAttempts": 3
+    },
+    {
+      "id": "compile",
+      "command": "cd $HOME/.openclaw/workspace && npx tsc --noEmit 2>&1",
+      "successCondition": "exitCode === 0",
+      "maxAttempts": 5
+    },
+    {
+      "id": "dashboard_build",
+      "command": "cd $HOME/.openclaw/workspace/dashboard && npx vite build --outDir dist 2>&1",
+      "successCondition": "exitCode === 0 and dashboard/dist/index.html exists",
+      "maxAttempts": 3
+    },
+    {
+      "id": "database",
+      "command": "cd $HOME/.openclaw/workspace && npm run db:migrate 2>&1",
+      "successCondition": "exitCode === 0 and tables exist: qa_runs, artifacts, evidence_items, check_results, run_events",
+      "maxAttempts": 3
+    },
+    {
+      "id": "service_backend",
+      "command": "sleep 3 && curl -sf http://localhost:3100/health 2>&1",
+      "successCondition": "HTTP 200 response",
+      "maxAttempts": 3,
+      "setup": "cd $HOME/.openclaw/workspace && if [ -f $HOME/.openclaw/workspace/.openclaw/.env ]; then set -a; . $HOME/.openclaw/workspace/.openclaw/.env 2>/dev/null; set +a; fi && kill $(cat /tmp/agent-backend.pid 2>/dev/null) 2>/dev/null; fuser -k 3100/tcp 2>/dev/null; sleep 1 && PORT=3100 nohup npx tsx backend/index.ts > /tmp/agent-backend.log 2>&1 & echo $! > /tmp/agent-backend.pid"
+    },
+    {
+      "id": "service_dashboard",
+      "command": "curl -sf http://localhost:3200/ 2>&1",
+      "successCondition": "HTTP 200 response",
+      "maxAttempts": 2,
+      "setup": "kill $(cat /tmp/agent-dashboard.pid 2>/dev/null) 2>/dev/null; fuser -k 3200/tcp 2>/dev/null; sleep 1 && cd $HOME/.openclaw/workspace && nohup npx serve dashboard/dist -l 3200 -s --no-clipboard > /tmp/agent-dashboard.log 2>&1 & echo $! > /tmp/agent-dashboard.pid && sleep 2"
+    },
+    {
+      "id": "endpoint_GET_/api/builder-lifecycle-sentinel/runs",
+      "command": "curl -sf --max-time 5 http://localhost:3100/api/builder-lifecycle-sentinel/runs 2>&1",
+      "successCondition": "valid JSON response",
+      "maxAttempts": 3
+    },
+    {
+      "id": "endpoint_GET_/api/builder-lifecycle-sentinel/runs/:id",
+      "command": "curl -sf --max-time 5 http://localhost:3100/api/builder-lifecycle-sentinel/runs/test 2>&1",
+      "successCondition": "valid JSON response",
+      "maxAttempts": 3
+    },
+    {
+      "id": "endpoint_GET_/api/builder-lifecycle-sentinel/runs/:id/checks",
+      "command": "curl -sf --max-time 5 http://localhost:3100/api/builder-lifecycle-sentinel/runs/test/checks 2>&1",
+      "successCondition": "valid JSON response",
+      "maxAttempts": 3
+    },
+    {
+      "id": "endpoint_GET_/api/builder-lifecycle-sentinel/runs/:id/artifacts",
+      "command": "curl -sf --max-time 5 http://localhost:3100/api/builder-lifecycle-sentinel/runs/test/artifacts 2>&1",
+      "successCondition": "valid JSON response",
+      "maxAttempts": 3
+    },
+    {
+      "id": "endpoint_GET_/api/builder-lifecycle-sentinel/runs/:id/evidence",
+      "command": "curl -sf --max-time 5 http://localhost:3100/api/builder-lifecycle-sentinel/runs/test/evidence 2>&1",
+      "successCondition": "valid JSON response",
+      "maxAttempts": 3
+    }
+  ]
+}

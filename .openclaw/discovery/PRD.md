@@ -1,10 +1,16 @@
 # Product Requirements Document
 
 ## Product Name
+
 Builder Lifecycle Sentinel
 
+---
+
 ## Problem Statement
+
 The Ruh agent builder create-flow can appear successful while silently missing critical lifecycle evidence: sandbox attachment may not be proven, the wrong model may be active, Think may write generic or stale PRD/TRD files, Plan may omit `architecture.json` or `PLAN.md`, Build may miss required workspace files, and Review/Test readiness may be overstated. The Ruh developer team and builder operator need a compact local QA agent that performs one manual, evidence-backed pass over a fresh create-flow and produces a trustworthy readiness report without mutating external systems or blocking the run.
+
+---
 
 ## Target Users
 
@@ -15,18 +21,26 @@ The Ruh agent builder create-flow can appear successful while silently missing c
 ### User Context
 The user has just run or is about to run one fresh agent-builder create-flow for `Builder Lifecycle Sentinel`. They need a local QA pass that answers: did the builder actually produce the expected lifecycle artifacts for this exact agent, and is the run truthfully ready for Review/Test without claiming ship/deploy readiness prematurely?
 
+---
+
 ## Goals
+
 - Produce a trustworthy readiness report for one fresh create-flow.
 - Verify local evidence for environment, Think, Plan, Build, and Review/Test readiness.
 - Distinguish pass, fail, and unknown/blocked states with evidence.
 - Stay compact, local-only, and observe/report-only.
 
+---
+
 ## Non-Goals
+
 - Do not build, edit, repair, deploy, ship, or block anything.
 - Do not call external APIs or integrations.
 - Do not run destructive Docker/OpenClaw commands.
 - Do not approve shipping or infer operator approval.
 - Do not treat stale files from older runs as valid evidence for the fresh create-flow.
+
+---
 
 ## Core Capabilities
 
@@ -65,6 +79,8 @@ The user has just run or is about to run one fresh agent-builder create-flow for
    - Break down results by lifecycle stage and check.
    - Include evidence references: file path, command/source, timestamp, session id, short log excerpt, and reason.
 
+---
+
 ## User Flows
 
 ### Flow 1: Manual One-Shot QA Pass
@@ -87,6 +103,8 @@ The user has just run or is about to run one fresh agent-builder create-flow for
 3. If approval is absent, Sentinel reports `ship_not_approved` regardless of other lifecycle readiness.
 4. Sentinel does not deploy, push, or mutate any external system.
 
+---
+
 ## Channels & Integrations
 
 ### Channels
@@ -102,6 +120,8 @@ The user has just run or is about to run one fresh agent-builder create-flow for
 
 ### External Integrations
 None. External API calls, cloud services, public repos, and deployment systems are out of scope.
+
+---
 
 ## Data Requirements
 
@@ -155,6 +175,8 @@ None. External API calls, cloud services, public repos, and deployment systems a
 - On demand only, one-shot per fresh create-flow.
 - No scheduled polling required.
 
+---
+
 ## Dashboard Requirements
 
 ### Page: Readiness Overview
@@ -190,6 +212,8 @@ URL path: `/builder-lifecycle-sentinel/evidence`
 - Source locator, excerpt, timestamp, redaction flag.
 - No full raw log dumps.
 
+---
+
 ## Memory & Context
 
 The agent should remember:
@@ -202,6 +226,8 @@ The agent should not remember:
 - Secrets from logs or config files.
 - Full session transcripts or full backend logs.
 - Any external credentials.
+
+---
 
 ## Success Criteria
 
@@ -216,6 +242,8 @@ The Builder Lifecycle Sentinel works when:
 - It flags Review/Test readiness claims that are unsupported by evidence.
 - It never claims ship/deploy readiness without explicit operator approval.
 - It completes in a bounded, compact manual run suitable for local developer use.
+
+---
 
 ## Acceptance Criteria
 

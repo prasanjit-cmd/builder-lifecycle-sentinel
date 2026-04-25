@@ -1,9 +1,13 @@
 # Technical Requirements Document
 
 ## Product Name
+
 Builder Lifecycle Sentinel
 
+---
+
 ## Architecture Overview
+
 Builder Lifecycle Sentinel is a local-only QA agent that performs a manual one-shot inspection of a fresh Ruh agent-builder create-flow. It gathers evidence from local workspace files, OpenClaw/Ruh runtime APIs, Docker/Podman state where available, and bounded logs. It persists structured results in SQLite and exposes a Mission Control dashboard plus local API endpoints for readiness reporting.
 
 The Sentinel is observe/report-only. It does not modify builder outputs, deploy, ship, block, or call external services.
@@ -20,6 +24,8 @@ The Sentinel is observe/report-only. It does not modify builder outputs, deploy,
 6. Sentinel stores artifacts, evidence, and check results in SQLite.
 7. Sentinel computes overall readiness.
 8. Sentinel presents a concise summary and dashboard views with detailed evidence.
+
+---
 
 ## Skills & Workflow
 
@@ -75,6 +81,8 @@ Outputs:
 5. Persist `qa_runs`, `check_results`, `artifacts`, and `evidence_items`.
 6. Run `render-readiness-report`.
 7. Return concise summary and dashboard link/path.
+
+---
 
 ## External APIs & Tools
 
@@ -193,6 +201,8 @@ Log reads must be bounded:
 - Max bytes per file: 64 KB by default.
 - Max stored excerpt: 2 KB per evidence item.
 
+---
+
 ## Database Schema
 
 SQLite database: local agent runtime database.
@@ -289,6 +299,8 @@ CREATE TABLE run_events (
 CREATE INDEX idx_run_events_run_time ON run_events(qa_run_id, event_at);
 ```
 
+---
+
 ## Required Checks
 
 ### Environment Checks
@@ -331,6 +343,8 @@ CREATE INDEX idx_run_events_run_time ON run_events(qa_run_id, event_at);
 ### Ship Guardrail Checks
 - `no_ship_without_approval`: deploy/ship status is not marked done without explicit operator approval evidence.
 - `external_mutation_absent`: Sentinel did not perform or require external mutation.
+
+---
 
 ## API Endpoints
 
@@ -450,6 +464,8 @@ Response:
 
 Consumed by: Evidence Log page and expanded check details.
 
+---
+
 ## Dashboard Pages
 
 ### Page 1: Readiness Overview
@@ -481,6 +497,8 @@ Consumed by: Evidence Log page and expanded check details.
   - `activity-feed`: evidence items ordered by captured time.
   - `data-table`: source type, locator, confidence, redaction flag, excerpt.
 
+---
+
 ## Vector Collections
 
 ### `builder_lifecycle_failure_patterns`
@@ -508,6 +526,8 @@ Use:
 Guardrails:
 - Do not embed raw logs, secrets, full transcripts, or config files containing credentials.
 
+---
+
 ## Triggers & Scheduling
 
 ### Manual Trigger
@@ -525,6 +545,8 @@ Not required.
 
 ### Cron
 None by default. The PRD calls for manual one-shot per fresh create-flow.
+
+---
 
 ## Environment Variables
 
@@ -545,6 +567,8 @@ BUILDER_SENTINEL_ALLOW_EXTERNAL_CALLS=false
 ```
 
 OpenClaw environment is inherited from the local runtime. The Sentinel must not require Google Ads, Meta, Slack, GitHub, cloud database, or deployment credentials.
+
+---
 
 ## Error Handling & Guardrails
 
@@ -603,7 +627,10 @@ The Sentinel must never report deployment/shipping as complete unless explicit o
 - Max files scanned by content: 100 by default.
 - Max artifact content read per file: 128 KB by default.
 
+---
+
 ## Implementation Notes for Future BUILD Phase
+
 - Build only after human review of these THINK documents.
 - Skills should live under `skills/` and include frontmatter.
 - The Sentinel should persist reports locally and expose dashboard endpoints.
