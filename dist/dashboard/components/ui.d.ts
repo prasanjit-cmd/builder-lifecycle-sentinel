@@ -23,15 +23,15 @@ export declare const subheadingStyle: CSSProperties;
 export declare const gridStyle: (cols: number) => CSSProperties;
 export declare function LoadingState({ label }: {
     label?: string;
-}): div;
+}): import("react/jsx-runtime").JSX.Element;
 export declare function ErrorState({ message }: {
     message: string;
-}): div;
+}): import("react/jsx-runtime").JSX.Element;
 export declare function EmptyState({ title, description }: {
     title?: string;
     description?: string;
-}): div;
+}): import("react/jsx-runtime").JSX.Element;
 export declare function PageHeader({ title, description }: {
     title: string;
     description?: string;
-}): div;
+}): import("react/jsx-runtime").JSX.Element;
