@@ -9,21 +9,22 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
-    "declaration": true,
+    "declaration": false,
     "jsx": "react-jsx",
+    "types": ["node", "react", "react-dom"],
     "paths": {
-      "@/*": [
-        "./*"
-      ]
+      "@/*": ["./*"]
     }
   },
   "include": [
-    "**/*.ts",
-    "**/*.tsx"
+    "backend/**/*.ts",
+    "db/**/*.ts",
+    "dashboard/components/**/*.ts",
+    "dashboard/components/**/*.tsx",
+    "dashboard/hooks/**/*.ts",
+    "dashboard/layout.tsx",
+    "dashboard/main.tsx",
+    "dashboard/pages/**/*.tsx"
   ],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "dashboard/dist"
-  ]
+  "exclude": ["node_modules", "dist", "dashboard/dist"]
 }
